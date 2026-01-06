@@ -89,6 +89,20 @@ export class ValueCheckUnknownTypeError extends TypeBoxError {
   }
 }
 // ------------------------------------------------------------------
+// Helpers
+// ------------------------------------------------------------------
+function setCache(cache: WeakMap<object, WeakSet<object>>, value: object, schema: object) {
+  const cachedValue = cache.get(value)
+  if (cachedValue && cachedValue.has(schema)) {
+    return false
+  }
+  if (cachedValue) {
+    cachedValue.add(schema)
+    return true
+  }
+  cache.set(value, new WeakSet<object>([schema]))
+}
+// ------------------------------------------------------------------
 // TypeGuards
 // ------------------------------------------------------------------
 function IsAnyOrUnknown(schema: TSchema) {
@@ -109,7 +123,7 @@ function FromAny(schema: TAny, references: TSchema[], value: any): boolean {
 function FromArgument(schema: TArgument, references: TSchema[], value: any): boolean {
   return true
 }
-function FromArray(schema: TArray, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromArray(schema: TArray, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   if (!IsArray(value)) return false
   if (IsDefined<number>(schema.minItems) && !(value.length >= schema.minItems)) {
     return false
@@ -117,8 +131,10 @@ function FromArray(schema: TArray, references: TSchema[], value: any, cache: Wea
   if (IsDefined<number>(schema.maxItems) && !(value.length <= schema.maxItems)) {
     return false
   }
-  if (cache.has(value)) return true
-  cache.add(value)
+  // If the value/schema pair has already been evaluated then return true
+  if (setCache(cache, value, schema) === false) {
+    return true
+  }
   if (!value.every((value) => Visit(schema.items, references, value, cache))) {
     return false
   }
@@ -168,7 +184,7 @@ function FromBigInt(schema: TBigInt, references: TSchema[], value: any): boolean
 function FromBoolean(schema: TBoolean, references: TSchema[], value: any): boolean {
   return IsBoolean(value)
 }
-function FromConstructor(schema: TConstructor, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromConstructor(schema: TConstructor, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   return Visit(schema.returns, references, value.prototype, cache)
 }
 function FromDate(schema: TDate, references: TSchema[], value: any): boolean {
@@ -193,7 +209,7 @@ function FromDate(schema: TDate, references: TSchema[], value: any): boolean {
 function FromFunction(schema: TFunction, references: TSchema[], value: any): boolean {
   return IsFunction(value)
 }
-function FromImport(schema: TImport, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromImport(schema: TImport, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   const definitions = globalThis.Object.values(schema.$defs) as TSchema[]
   const target = schema.$defs[schema.$ref] as TSchema
   return Visit(target, [...references, ...definitions], value, cache)
@@ -219,7 +235,7 @@ function FromInteger(schema: TInteger, references: TSchema[], value: any): boole
   }
   return true
 }
-function FromIntersect(schema: TIntersect, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromIntersect(schema: TIntersect, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   const check1 = schema.allOf.every((schema) => Visit(schema, references, value, cache))
   if (schema.unevaluatedProperties === false) {
     const keyPattern = new RegExp(KeyOfPattern(schema))
@@ -242,7 +258,7 @@ function FromLiteral(schema: TLiteral, references: TSchema[], value: any): boole
 function FromNever(schema: TNever, references: TSchema[], value: any): boolean {
   return false
 }
-function FromNot(schema: TNot, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromNot(schema: TNot, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   return !Visit(schema.not, references, value, cache)
 }
 function FromNull(schema: TNull, references: TSchema[], value: any): boolean {
@@ -267,7 +283,7 @@ function FromNumber(schema: TNumber, references: TSchema[], value: any): boolean
   }
   return true
 }
-function FromObject(schema: TObject, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromObject(schema: TObject, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   if (!TypeSystemPolicy.IsObjectLike(value)) return false
   if (IsDefined<number>(schema.minProperties) && !(Object.getOwnPropertyNames(value).length >= schema.minProperties)) {
     return false
@@ -275,23 +291,21 @@ function FromObject(schema: TObject, references: TSchema[], value: any, cache: W
   if (IsDefined<number>(schema.maxProperties) && !(Object.getOwnPropertyNames(value).length <= schema.maxProperties)) {
     return false
   }
-  if (cache.has(value)) return true
-  cache.add(value)
+  if (setCache(cache, value, schema) === false) {
+    return true
+  }
   const knownKeys = Object.getOwnPropertyNames(schema.properties)
   for (const knownKey of knownKeys) {
     const property = schema.properties[knownKey]
     if (schema.required && schema.required.includes(knownKey)) {
       if (!Visit(property, references, value[knownKey], cache)) {
-        cache.delete(value)
         return false
       }
       if ((ExtendsUndefinedCheck(property) || IsAnyOrUnknown(property)) && !(knownKey in value)) {
-        cache.delete(value)
         return false
       }
     } else {
       if (TypeSystemPolicy.IsExactOptionalProperty(value, knownKey) && !Visit(property, references, value[knownKey], cache)) {
-        cache.delete(value)
         return false
       }
     }
@@ -300,27 +314,23 @@ function FromObject(schema: TObject, references: TSchema[], value: any, cache: W
     const valueKeys = Object.getOwnPropertyNames(value)
     // optimization: value is valid if schemaKey length matches the valueKey length
     if (schema.required && schema.required.length === knownKeys.length && valueKeys.length === knownKeys.length) {
-      cache.delete(value)
       return true
     } else {
-      cache.delete(value)
       return valueKeys.every((valueKey) => knownKeys.includes(valueKey))
     }
   } else if (typeof schema.additionalProperties === 'object') {
     const valueKeys = Object.getOwnPropertyNames(value)
     const result = valueKeys.every((key) => knownKeys.includes(key) || Visit(schema.additionalProperties as TSchema, references, value[key], cache))
 
-    cache.delete(value)
     return result
   } else {
-    cache.delete(value)
     return true
   }
 }
 function FromPromise(schema: TPromise, references: TSchema[], value: any): boolean {
   return IsPromise(value)
 }
-function FromRecord(schema: TRecord, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromRecord(schema: TRecord, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   if (!TypeSystemPolicy.IsRecordLike(value)) {
     return false
   }
@@ -348,7 +358,7 @@ function FromRecord(schema: TRecord, references: TSchema[], value: any, cache: W
       : true
   return check1 && check2 && check3
 }
-function FromRef(schema: TRef, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromRef(schema: TRef, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   return Visit(Deref(schema, references), references, value, cache)
 }
 function FromRegExp(schema: TRegExp, references: TSchema[], value: any): boolean {
@@ -388,10 +398,10 @@ function FromSymbol(schema: TSymbol, references: TSchema[], value: any): boolean
 function FromTemplateLiteral(schema: TTemplateLiteral, references: TSchema[], value: any): boolean {
   return IsString(value) && new RegExp(schema.pattern).test(value)
 }
-function FromThis(schema: TThis, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromThis(schema: TThis, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   return Visit(Deref(schema, references), references, value, cache)
 }
-function FromTuple(schema: TTuple<any[]>, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromTuple(schema: TTuple<any[]>, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   if (!IsArray(value)) {
     return false
   }
@@ -412,7 +422,7 @@ function FromTuple(schema: TTuple<any[]>, references: TSchema[], value: any, cac
 function FromUndefined(schema: TUndefined, references: TSchema[], value: any): boolean {
   return IsUndefined(value)
 }
-function FromUnion(schema: TUnion, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function FromUnion(schema: TUnion, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   return schema.anyOf.some((inner) => Visit(inner, references, value, cache))
 }
 function FromUint8Array(schema: TUint8Array, references: TSchema[], value: any): boolean {
@@ -438,7 +448,7 @@ function FromKind(schema: TSchema, references: TSchema[], value: unknown): boole
   const func = TypeRegistry.Get(schema[Kind])!
   return func(schema, value)
 }
-function Visit<T extends TSchema>(schema: T, references: TSchema[], value: any, cache: WeakSet<object>): boolean {
+function Visit<T extends TSchema>(schema: T, references: TSchema[], value: any, cache: WeakMap<object, WeakSet<object>>): boolean {
   const references_ = IsDefined<string>(schema.$id) ? Pushref(schema, references) : references
   const schema_ = schema as any
   switch (schema_[Kind]) {
@@ -517,13 +527,13 @@ function Visit<T extends TSchema>(schema: T, references: TSchema[], value: any, 
 // Check
 // --------------------------------------------------------------------------
 /** Returns true if the value matches the given type. */
-export function Check<T extends TSchema>(schema: T, references: TSchema[], value: unknown, cache?: WeakSet<object>): value is Static<T>
+export function Check<T extends TSchema>(schema: T, references: TSchema[], value: unknown, cache?: WeakMap<object, WeakSet<object>>): value is Static<T>
 /** Returns true if the value matches the given type. */
-export function Check<T extends TSchema>(schema: T, value: unknown, cache?: WeakSet<object>): value is Static<T>
+export function Check<T extends TSchema>(schema: T, value: unknown, cache?: WeakMap<object, WeakSet<object>>): value is Static<T>
 /** Returns true if the value matches the given type. */
 export function Check(...args: any[]) {
-  if (args.length === 2 || (args.length === 3 && args[2] instanceof WeakSet)) {
-    return Visit(args[0], [], args[1], args[2] ?? new WeakSet())
+  if (args.length === 2 || (args.length === 3 && args[2] instanceof WeakMap)) {
+    return Visit(args[0], [], args[1], args[2] ?? new WeakMap())
   }
-  return Visit(args[0], args[1], args[2], args[3] ?? new WeakSet())
+  return Visit(args[0], args[1], args[2], args[3] ?? new WeakMap())
 }
