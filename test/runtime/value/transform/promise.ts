@@ -2,6 +2,7 @@ import * as Encoder from './_encoder'
 import { Assert } from '../../assert'
 import { Value } from '@sinclair/typebox/value'
 import { Type } from '@sinclair/typebox'
+import { TypeCompiler } from '@sinclair/typebox/compiler'
 
 describe('value/transform/Promise', () => {
   // --------------------------------------------------------
@@ -31,9 +32,14 @@ describe('value/transform/Promise', () => {
     const R = Encoder.Decode(T, Promise.resolve(1))
     Assert.IsEqual(R, 1)
   })
-  it('Should encode mapped', () => {
-    const R = Encoder.Encode(T, null)
-    Assert.IsTrue(R instanceof Promise)
+  it('Should encode mapped', async () => {
+    // Compare resolved values because each encoder creates a separate promise.
+    const compiled = TypeCompiler.Compile(T).Encode(null)
+    const interpreted = Value.Encode(T, null)
+    Assert.IsTrue(compiled instanceof Promise)
+    Assert.IsTrue(interpreted instanceof Promise)
+    const values = await Promise.all([compiled, interpreted])
+    Assert.IsEqual(values, [1, 1])
   })
   it('Should throw on mapped decode', () => {
     Assert.Throws(() => Encoder.Decode(T, null))
