@@ -115,4 +115,13 @@ describe('value/check/Recursive', () => {
 
     Assert.IsEqual(result, true)
   })
+
+  it('Should validate a cyclic value without skipping sparse array elements', () => {
+    const value: { id: string; nodes: unknown[] } = { id: 'A', nodes: [] }
+    value.nodes.push(value)
+    Assert.IsTrue(Value.Check(T, value))
+
+    value.nodes.length = 2
+    Assert.IsFalse(Value.Check(T, value))
+  })
 })

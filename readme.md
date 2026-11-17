@@ -4,7 +4,7 @@
 
 <p>Json Schema Type Builder with Static Type Resolution for TypeScript</p>
 
-<img src="https://raw.githubusercontent.com/sinclairzx81/typebox/refs/heads/master/typebox.png" />
+<img src="https://raw.githubusercontent.com/sinclairzx81/sinclair-typebox/refs/heads/main/typebox.png" />
 
 <br />
 <br />
@@ -20,14 +20,18 @@
 
 ## Install
 
+This is Scalar's fork of [TypeBox 0.x](https://github.com/sinclairzx81/sinclair-typebox), synchronized through upstream [0.34.52](https://github.com/sinclairzx81/sinclair-typebox/commit/20f9f9bdf04b84742fa8a5872bca5a24d9575598). It includes Scalar's support for cyclic values and fixes for validation caching and optional module imports.
+
+The maintained 0.x upstream lives at `sinclairzx81/sinclair-typebox`. [TypeBox 1.x](https://github.com/sinclairzx81/typebox) has a separate migration path.
+
 ```bash
-$ npm install @sinclair/typebox --save
+$ npm install @scalar/typebox --save
 ```
 
 ## Example
 
 ```typescript
-import { Type, type Static } from '@sinclair/typebox'
+import { Type, type Static } from '@scalar/typebox'
 
 const T = Type.Object({                              // const T = {
   x: Type.Number(),                                  //   type: 'object',

@@ -4,7 +4,7 @@
 
 The MIT License (MIT)
 
-Copyright (c) 2017-2025 Haydn Paterson (sinclair) <haydn.developer@gmail.com>
+Copyright (c) 2017-2026 Haydn Paterson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,7 @@ import { type TArray } from '../array/index'
 import { type TAsyncIterator } from '../async-iterator/index'
 import { type TIterator } from '../iterator/index'
 import { type TPromise } from '../promise/index'
-import { type TObject, type TProperties, Object } from '../object/index'
+import { type TObject, type TProperties, Object as _Object_ } from '../object/index'
 import { type TRecordOrObject, type TRecord, Record, RecordKey, RecordValue } from '../record/index'
 
 import * as ValueGuard from '../guard/value'
@@ -165,12 +165,12 @@ function FromPromise(args: TSchema[], type: TPromise): TPromise {
 // prettier-ignore
 type TFromObject<Args extends TSchema[], Properties extends TProperties,
   MappedProperties extends TProperties = TFromProperties<Args, Properties>,
-  Result extends TObject = TObject<MappedProperties>
+  Result extends TSchema = TObject<MappedProperties>
 > = Result
 // prettier-ignore
 function FromObject(args: TSchema[], type: TObject): TObject {
   const mappedProperties = FromProperties(args, type.properties)
-  return { ...type, ...Object(mappedProperties) } // retain options
+  return { ...type, ..._Object_(mappedProperties) } // retain options
 }
 // ------------------------------------------------------------------
 // Object
