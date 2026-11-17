@@ -4,7 +4,7 @@
 
 The MIT License (MIT)
 
-Copyright (c) 2017-2025 Haydn Paterson (sinclair) <haydn.developer@gmail.com>
+Copyright (c) 2017-2026 Haydn Paterson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -29,12 +29,12 @@ THE SOFTWARE.
 import { CreateType } from '../create/type'
 import { Discard } from '../discard/discard'
 import type { TSchema, SchemaOptions } from '../schema/index'
-import type { TupleToUnion, Evaluate, Ensure } from '../helpers/index'
+import type { TupleToUnion, Evaluate } from '../helpers/index'
 import { type TRecursive } from '../recursive/index'
 import { Computed, type TComputed } from '../computed/index'
 import { Intersect, type TIntersect } from '../intersect/index'
 import { Literal, type TLiteral, type TLiteralValue } from '../literal/index'
-import { Object, type TObject, type TProperties, type TPropertyKey } from '../object/index'
+import { Object as _Object_, type TObject, type TProperties, type TPropertyKey } from '../object/index'
 import { Union, type TUnion } from '../union/index'
 import { type TMappedKey, type TMappedResult } from '../mapped/index'
 import { type TRef } from '../ref/index'
@@ -93,14 +93,16 @@ function FromProperties<Properties extends TProperties, PropertyKeys extends Pro
 // FromObject
 // ------------------------------------------------------------------
 // prettier-ignore
-type TFromObject<Type extends TObject, Key extends PropertyKey[], Properties extends TProperties = Type['properties']> = Ensure<TObject<(
-  TFromProperties<Properties, Key>
-)>>
+type TFromObject<_Type extends TObject, Keys extends PropertyKey[], Properties extends TProperties,
+  MappedProperties extends TProperties = TFromProperties<Properties, Keys>,
+  Result extends TSchema = TObject<MappedProperties>,
+> = Result
 // prettier-ignore
-function FromObject<T extends TObject, K extends PropertyKey[]>(T: T, K: K): TFromObject<T, K> {
-  const options = Discard(T, [TransformKind, '$id', 'required', 'properties'])
-  const properties = FromProperties(T['properties'], K)
-  return Object(properties, options) as never
+function FromObject<Type extends TObject, keys extends PropertyKey[], Properties extends TProperties>
+  (Type: Type, keys: keys, properties: Properties): TFromObject<Type, keys, Properties> {
+  const options = Discard(Type, [TransformKind, '$id', 'required', 'properties'])
+  const mappedProperties = FromProperties(properties, keys)
+  return _Object_(mappedProperties, options) as never
 }
 // ------------------------------------------------------------------
 // UnionFromPropertyKeys
@@ -122,20 +124,21 @@ function UnionFromPropertyKeys<PropertyKeys extends PropertyKey[]>(propertyKeys:
 // TPickResolve
 // ------------------------------------------------------------------
 // prettier-ignore
-export type TPickResolve<Properties extends TProperties, PropertyKeys extends PropertyKey[]> = (
-  Properties extends TRecursive<infer Types extends TSchema> ? TRecursive<TPickResolve<Types, PropertyKeys>> : 
-  Properties extends TIntersect<infer Types extends TSchema[]> ? TIntersect<TFromIntersect<Types, PropertyKeys>> : 
-  Properties extends TUnion<infer Types  extends TSchema[]> ? TUnion<TFromUnion<Types, PropertyKeys>> : 
-  Properties extends TObject<infer Types extends TProperties> ? TFromObject<TObject<Types>, PropertyKeys> : 
+export type TPickResolve<Type extends TProperties, PropertyKeys extends PropertyKey[]> = (
+  Type extends TRecursive<infer Types extends TSchema> ? TRecursive<TPickResolve<Types, PropertyKeys>> :
+  Type extends TIntersect<infer Types extends TSchema[]> ? TIntersect<TFromIntersect<Types, PropertyKeys>> :
+  Type extends TUnion<infer Types  extends TSchema[]> ? TUnion<TFromUnion<Types, PropertyKeys>> :
+  Type extends TObject<infer Properties extends TProperties> ? TFromObject<TObject, PropertyKeys, Properties> :
   TObject<{}>
 )
 // prettier-ignore
-function PickResolve<Properties extends TSchema, PropertyKeys extends PropertyKey[]>(properties: Properties, propertyKeys: [...PropertyKeys]): TPickResolve<Properties, PropertyKeys> {
+function PickResolve<Type extends TSchema, PropertyKeys extends PropertyKey[]>
+  (type: Type, propertyKeys: [...PropertyKeys]): TPickResolve<Type, PropertyKeys> {
   return (
-    IsIntersect(properties) ? Intersect(FromIntersect(properties.allOf, propertyKeys)) : 
-    IsUnion(properties) ? Union(FromUnion(properties.anyOf, propertyKeys)) : 
-    IsObject(properties) ? FromObject(properties, propertyKeys) :
-    Object({})
+    IsIntersect(type) ? Intersect(FromIntersect(type.allOf, propertyKeys)) :
+    IsUnion(type) ? Union(FromUnion(type.anyOf, propertyKeys)) :
+    IsObject(type) ? FromObject(type, propertyKeys, type.properties) :
+    _Object_({})
   ) as never
 }
 // ------------------------------------------------------------------

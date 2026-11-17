@@ -4,7 +4,7 @@
 
 The MIT License (MIT)
 
-Copyright (c) 2017-2025 Haydn Paterson (sinclair) <haydn.developer@gmail.com>
+Copyright (c) 2017-2026 Haydn Paterson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,7 @@ import { type TComputed, Computed } from '../computed/index'
 import { type TOptional, Optional } from '../optional/index'
 import { type TReadonly } from '../readonly/index'
 import { type TRecursive } from '../recursive/index'
-import { type TObject, type TProperties, Object } from '../object/index'
+import { type TObject, type TProperties, Object as _Object_ } from '../object/index'
 import { type TIntersect, Intersect } from '../intersect/index'
 import { type TUnion, Union } from '../union/index'
 import { type TRef, Ref } from '../ref/index'
@@ -101,14 +101,16 @@ function FromProperties<Properties extends TProperties>(properties: Properties):
 // FromObject
 // ------------------------------------------------------------------
 // prettier-ignore
-type TFromObject<Type extends TObject, Properties extends TProperties = Type['properties']> = Ensure<TObject<(
-  TFromProperties<Properties>
-)>>
+type TFromObject<_Type extends TObject, Properties extends TProperties,
+  MappedProperties extends TProperties = TFromProperties<Properties>,
+  Result extends TSchema = TObject<MappedProperties>
+> = Result
 // prettier-ignore
-function FromObject<Type extends TObject>(type: Type): TFromObject<Type> {
+function FromObject<Type extends TObject, Properties extends TProperties>
+  (type: Type, properties: Properties): TFromObject<Type, Properties> {
   const options = Discard(type, [TransformKind, '$id', 'required', 'properties'])
-  const properties = FromProperties(type['properties'])
-  return Object(properties, options) as never
+  const mappedProperties = FromProperties(properties)
+  return _Object_(mappedProperties, options) as never
 }
 // ------------------------------------------------------------------
 // FromRest
@@ -134,7 +136,7 @@ function PartialResolve<Type extends TSchema>(type: Type): TPartial<Type> {
     KindGuard.IsRef(type) ? FromRef(type.$ref) :
     KindGuard.IsIntersect(type) ? Intersect(FromRest(type.allOf)) :
     KindGuard.IsUnion(type) ? Union(FromRest(type.anyOf)) :
-    KindGuard.IsObject(type) ? FromObject(type) :
+    KindGuard.IsObject(type) ? FromObject(type, type.properties) :
     // Intrinsic
     KindGuard.IsBigInt(type) ? type :
     KindGuard.IsBoolean(type) ? type :
@@ -146,7 +148,7 @@ function PartialResolve<Type extends TSchema>(type: Type): TPartial<Type> {
     KindGuard.IsSymbol(type) ? type :
     KindGuard.IsUndefined(type) ? type :
     // Passthrough
-    Object({})
+    _Object_({})
   ) as never
 }
 // ------------------------------------------------------------------
@@ -160,7 +162,7 @@ export type TPartial<Type extends TSchema> = (
   Type extends TRef<infer Ref extends string> ? TFromRef<Ref> :
   Type extends TIntersect<infer Types extends TSchema[]> ? TIntersect<TFromRest<Types>> :
   Type extends TUnion<infer Types extends TSchema[]> ? TUnion<TFromRest<Types>> :
-  Type extends TObject<infer Properties extends TProperties> ? TFromObject<TObject<Properties>> :
+  Type extends TObject<infer Properties extends TProperties> ? TFromObject<TObject, Properties> :
   // Intrinsic
   Type extends TBigInt ? Type :
   Type extends TBoolean ? Type :

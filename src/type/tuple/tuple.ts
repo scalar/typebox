@@ -4,7 +4,7 @@
 
 The MIT License (MIT)
 
-Copyright (c) 2017-2025 Haydn Paterson (sinclair) <haydn.developer@gmail.com>
+Copyright (c) 2017-2026 Haydn Paterson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -46,10 +46,10 @@ export interface TTuple<T extends TSchema[] = TSchema[]> extends TSchema {
   [Kind]: 'Tuple'
   static: TupleStatic<T, this['params']>
   type: 'array'
-  items?: T
+  items: T
   additionalItems?: false
-  minItems: number
-  maxItems: number
+  minItems: T['length']
+  maxItems: T['length']
 }
 /** `[Json]` Creates a Tuple type */
 export function Tuple<Types extends TSchema[]>(types: [...Types], options?: SchemaOptions): TTuple<Types> {

@@ -4,7 +4,7 @@
 
 The MIT License (MIT)
 
-Copyright (c) 2017-2025 Haydn Paterson (sinclair) <haydn.developer@gmail.com>
+Copyright (c) 2017-2026 Haydn Paterson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -135,8 +135,8 @@ function FromArray(schema: TArray, references: TSchema[], value: any, cache: Wea
   if (setCache(cache, value, schema) === false) {
     return true
   }
-  if (!value.every((value) => Visit(schema.items, references, value, cache))) {
-    return false
+  for (const element of value) {
+    if (!Visit(schema.items, references, element, cache)) return false
   }
   // prettier-ignore
   if (schema.uniqueItems === true && !((function() { const set = new Set(); for(const element of value) { const hashed = Hash(element); if(set.has(hashed)) { return false } else { set.add(hashed) } } return true })())) {

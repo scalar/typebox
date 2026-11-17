@@ -4,7 +4,7 @@
 
 The MIT License (MIT)
 
-Copyright (c) 2017-2025 Haydn Paterson (sinclair) <haydn.developer@gmail.com>
+Copyright (c) 2017-2026 Haydn Paterson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ import { CreateType } from '../create/type'
 import { Discard } from '../discard/discard'
 import { TransformKind } from '../symbols/symbols'
 import type { SchemaOptions, TSchema } from '../schema/index'
-import type { TupleToUnion, Evaluate, Ensure } from '../helpers/index'
+import type { TupleToUnion, Evaluate } from '../helpers/index'
 import { type TRecursive } from '../recursive/index'
 import type { TMappedKey, TMappedResult } from '../mapped/index'
 import { Computed, TComputed } from '../computed/index'
@@ -38,7 +38,7 @@ import { Literal, TLiteral, TLiteralValue } from '../literal/index'
 import { IndexPropertyKeys, type TIndexPropertyKeys } from '../indexed/index'
 import { Intersect, type TIntersect } from '../intersect/index'
 import { Union, type TUnion } from '../union/index'
-import { Object, type TObject, type TProperties } from '../object/index'
+import { Object as _Object_, type TObject, type TProperties } from '../object/index'
 import { type TRef } from '../ref/index'
 
 // ------------------------------------------------------------------
@@ -99,14 +99,16 @@ function FromProperties<Properties extends TProperties, PropertyKeys extends Pro
 // FromObject
 // ------------------------------------------------------------------
 // prettier-ignore
-type TFromObject<Type extends TObject, PropertyKeys extends PropertyKey[], Properties extends TProperties = Type['properties']> = Ensure<TObject<(
-  TFromProperties<Properties, PropertyKeys>
-)>>
+type TFromObject<_Type extends TObject, PropertyKeys extends PropertyKey[], Properties extends TProperties,
+  MappedProperties extends TProperties = TFromProperties<Properties, PropertyKeys>,
+  Result extends TSchema = TObject<MappedProperties>
+> = Result
 // prettier-ignore
-function FromObject<Properties extends TObject, PropertyKeys extends PropertyKey[]>(properties: Properties, propertyKeys: PropertyKeys): TFromObject<Properties, PropertyKeys> {
-  const options = Discard(properties, [TransformKind, '$id', 'required', 'properties'])
-  const omittedProperties = FromProperties(properties['properties'], propertyKeys)
-  return Object(omittedProperties, options) as never
+function FromObject<Type extends TObject, PropertyKeys extends PropertyKey[], Properties extends TProperties>
+  (type: Type, propertyKeys: [...PropertyKeys], properties: Properties): TFromObject<Type, PropertyKeys, Properties> {
+  const options = Discard(type, [TransformKind, '$id', 'required', 'properties'])
+  const mappedProperties = FromProperties(properties, propertyKeys)
+  return _Object_(mappedProperties, options) as never
 }
 // ------------------------------------------------------------------
 // UnionFromPropertyKeys
@@ -132,16 +134,17 @@ export type TOmitResolve<Properties extends TProperties, PropertyKeys extends Pr
   Properties extends TRecursive<infer Types extends TSchema> ? TRecursive<TOmitResolve<Types, PropertyKeys>> : 
   Properties extends TIntersect<infer Types extends TSchema[]> ? TIntersect<TFromIntersect<Types, PropertyKeys>> : 
   Properties extends TUnion<infer Types extends TSchema[]> ? TUnion<TFromUnion<Types, PropertyKeys>> : 
-  Properties extends TObject<infer Types extends TProperties> ? TFromObject<TObject<Types>, PropertyKeys> : 
+  Properties extends TObject<infer Properties extends TProperties> ? TFromObject<TObject, PropertyKeys, Properties> :
   TObject<{}>
 )
 // prettier-ignore
-function OmitResolve<Properties extends TSchema, PropertyKeys extends PropertyKey[]>(properties: Properties, propertyKeys: [...PropertyKeys]): TOmitResolve<Properties, PropertyKeys> {
+function OmitResolve<Type extends TSchema, PropertyKeys extends PropertyKey[]>
+  (type: Type, propertyKeys: [...PropertyKeys]): TOmitResolve<Type, PropertyKeys> {
   return (
-    IsIntersect(properties) ? Intersect(FromIntersect(properties.allOf, propertyKeys)) : 
-    IsUnion(properties) ? Union(FromUnion(properties.anyOf, propertyKeys)) : 
-    IsObject(properties) ? FromObject(properties, propertyKeys) :
-    Object({})
+    IsIntersect(type) ? Intersect(FromIntersect(type.allOf, propertyKeys)) :
+    IsUnion(type) ? Union(FromUnion(type.anyOf, propertyKeys)) :
+    IsObject(type) ? FromObject(type, propertyKeys, type.properties) :
+    _Object_({})
   ) as never
 }
 // ------------------------------------------------------------------
